@@ -10,10 +10,11 @@ const ChatWindow = () => {
   const [chatInfo, setChatInfo] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // Obtener la información del chat
+  // Cargar información del chat y mensajes iniciales
   useEffect(() => {
-    const fetchChatInfo = async () => {
+    const loadChatData = async () => {
       try {
+        // Cargar información del chat
         const { data: chats } = await getChats();
         const currentChat = chats.find(
           (chat) => chat.id === parseInt(chatId, 10)
@@ -25,72 +26,62 @@ const ChatWindow = () => {
           );
           setChatInfo(otherMember);
         }
+
+        // Cargar mensajes
+        const { data: messages } = await getMessages(chatId);
+        setMessages(messages);
       } catch (error) {
-        console.error("Error al cargar la información del chat:", error);
+        console.error("Error al cargar datos del chat:", error);
       }
     };
-    fetchChatInfo();
+
+    if (chatId) {
+      loadChatData();
+    }
   }, [chatId]);
 
-  // Inicializar conexión del socket
-  // Conectar socket al montar el componente
+  // Gestionar conexión del socket y salas
   useEffect(() => {
-    const token = localStorage.getItem("token");
     if (!socket.connected) {
+      const token = localStorage.getItem("token");
       socket.auth = { token };
       socket.connect();
     }
 
-    socket.on("connect", () => {
+    if (chatId) {
+      socket.emit("join-chat", chatId);
+    }
+
+    const handleConnect = () => {
       console.log("Socket conectado:", socket.id);
-      // Al conectar, unirse a la sala de chat
       if (chatId) {
         socket.emit("join-chat", chatId);
       }
-    });
+    };
+
+    socket.on("connect", handleConnect);
 
     return () => {
-      if (socket.connected) {
-        if (chatId) {
-          socket.emit("leave-chat", chatId);
-        }
-        socket.disconnect();
+      if (chatId) {
+        socket.emit("leave-chat", chatId);
       }
+      socket.off("connect", handleConnect);
     };
-  }, []); // Solo al montar/desmontar
-
-  // Cargar mensajes iniciales
-  useEffect(() => {
-    const fetchMessages = async () => {
-      try {
-        const { data } = await getMessages(chatId);
-        setMessages(data);
-      } catch (error) {
-        console.error("Error al cargar los mensajes:", error);
-      }
-    };
-    fetchMessages();
   }, [chatId]);
 
   // Manejar mensajes nuevos
   useEffect(() => {
     const handleNewMessage = (message) => {
-      console.log("Mensaje recibido:", message);
-      console.log("ChatId actual:", chatId);
-      console.log("ChatId del mensaje:", message.chatId);
-
       if (message.chatId === parseInt(chatId, 10)) {
         setMessages((prev) => {
-          console.log("Actualizando mensajes...");
-          // Verificar si ya existe un mensaje temporal con el mismo contenido
-          const hasTempMessage = prev.some(
+          const messageExists = prev.some(
             (msg) =>
-              msg.id.toString().startsWith("temp-") &&
-              msg.content === message.content
+              msg.id === message.id ||
+              (msg.id.toString().startsWith("temp-") &&
+                msg.content === message.content)
           );
 
-          if (hasTempMessage) {
-            // Reemplazar el mensaje temporal con el real
+          if (messageExists) {
             return prev.map((msg) =>
               msg.id.toString().startsWith("temp-") &&
               msg.content === message.content
@@ -99,14 +90,12 @@ const ChatWindow = () => {
             );
           }
 
-          // Si no existe un mensaje temporal, agregar el nuevo mensaje
           return [...prev, message];
         });
       }
     };
 
     const handleMessageError = (error) => {
-      console.error("Error en el mensaje:", error);
       if (error.content) {
         setMessages((prev) =>
           prev.filter(
@@ -117,16 +106,14 @@ const ChatWindow = () => {
               )
           )
         );
+        alert("Error al enviar el mensaje. Por favor, inténtalo de nuevo.");
       }
-      alert("Error al enviar el mensaje. Por favor, inténtalo de nuevo.");
     };
 
-    console.log("Suscribiéndose a new-message");
     socket.on("new-message", handleNewMessage);
     socket.on("message-error", handleMessageError);
 
     return () => {
-      console.log("Desuscribiéndose de new-message");
       socket.off("new-message", handleNewMessage);
       socket.off("message-error", handleMessageError);
     };
@@ -134,31 +121,35 @@ const ChatWindow = () => {
 
   // Auto-scroll al último mensaje
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+    scrollToBottom();
   }, [messages]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
 
+    const messageContent = newMessage.trim();
+    setNewMessage("");
+
     try {
-      // Crear mensaje temporal para UI optimista
       const tempMessage = {
         id: `temp-${Date.now()}`,
-        content: newMessage,
+        content: messageContent,
         chatId: parseInt(chatId, 10),
         sender: {
           username: localStorage.getItem("username"),
+          id: parseInt(localStorage.getItem("userId"), 10),
         },
         pending: true,
+        createdAt: new Date().toISOString(),
       };
 
-      // Actualizar UI inmediatamente
       setMessages((prev) => [...prev, tempMessage]);
-      setNewMessage("");
 
-      // Enviar mensaje a través del socket
       socket.emit("send-message", {
-        content: newMessage,
+        content: messageContent,
         chatId: parseInt(chatId, 10),
         senderId: parseInt(localStorage.getItem("userId"), 10),
       });
@@ -168,13 +159,6 @@ const ChatWindow = () => {
         prev.filter((msg) => !msg.id.toString().startsWith("temp-"))
       );
       alert("Error al enviar el mensaje. Por favor, inténtalo de nuevo.");
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
     }
   };
 
@@ -212,14 +196,14 @@ const ChatWindow = () => {
           <div
             key={msg.id}
             className={`mb-4 flex ${
-              msg.sender?.username === localStorage.getItem("username")
+              msg.sender?.id === parseInt(localStorage.getItem("userId"), 10)
                 ? "justify-end"
                 : "justify-start"
             }`}
           >
             <div
               className={`max-w-[70%] p-3 rounded-lg ${
-                msg.sender?.username === localStorage.getItem("username")
+                msg.sender?.id === parseInt(localStorage.getItem("userId"), 10)
                   ? "bg-indigo-100"
                   : "bg-white border"
               } ${msg.pending ? "opacity-70" : ""}`}
@@ -242,7 +226,12 @@ const ChatWindow = () => {
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyPress={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
             placeholder="Escribe un mensaje"
             className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />

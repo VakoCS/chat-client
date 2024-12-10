@@ -10,6 +10,7 @@ import ChatLayout from "./components/ChatLayout";
 import ChatWindow from "./components/ChatWindow";
 import { setAuthToken } from "./services/api";
 import Register from "./components/Register";
+import { connectSocket, socket } from "./services/socket";
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -17,10 +18,19 @@ const App = () => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     const username = localStorage.getItem("username");
-    if (token && username) {
+    const userId = localStorage.getItem("userId");
+
+    if (token && username && userId) {
       setAuthToken(token);
-      setUser({ username, token });
+      connectSocket(token);
+      setUser({ username, token, id: userId }); // Establecer el estado del usuario
     }
+
+    return () => {
+      if (socket.connected) {
+        socket.disconnect();
+      }
+    };
   }, []);
 
   return (

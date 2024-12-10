@@ -4,6 +4,7 @@ import ChatList from "./ChatList";
 import UserSearch from "./UserSearch";
 import { getChats } from "../services/api";
 import UserProfileMenu from "./UserProfileMenu";
+import { socket } from "../services/socket";
 
 const ChatLayout = () => {
   const { id } = useParams();
@@ -19,6 +20,25 @@ const ChatLayout = () => {
       }
     };
     fetchChats();
+
+    // Escuchar nuevos mensajes para actualizar la lista de chats
+    socket.on("new-message", (message) => {
+      setChats((prev) =>
+        prev.map((chat) => {
+          if (chat.id === message.chatId) {
+            return {
+              ...chat,
+              lastMessage: message,
+            };
+          }
+          return chat;
+        })
+      );
+    });
+
+    return () => {
+      socket.off("new-message");
+    };
   }, []);
 
   const handleCreateChat = (newChat) => {
