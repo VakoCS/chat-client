@@ -3,6 +3,8 @@ import { io } from "socket.io-client";
 const SOCKET_URL = "http://localhost:3000";
 
 export const socket = io(SOCKET_URL, {
+  transports: ['websocket', 'polling'], // Forzar transporte por WebSocket y fallback a polling
+
   autoConnect: false,
   reconnection: true,
   reconnectionDelay: 1000,
