@@ -22,3 +22,5 @@ export const getChats = () => api.get('/chats');
 export const getMessages = (chatId) => api.get(`/messages/${chatId}`);
 export const sendMessage = (chatId, content) =>
     api.post('/messages', { chatId, content });
+export const searchUsers = (query) => api.get(`/users/search?q=${query}`);
+export const createChat = (members) => api.post('/chats', { members });
