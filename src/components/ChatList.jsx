@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getChats } from "../services/api";
 import { socket } from "../services/socket";
+import { formatMessageDate } from "../utils/formatMessageDate";
 
 const ChatList = ({ chats: propChats, setChats: setParentChats }) => {
   const [localChats, setLocalChats] = useState([]);
@@ -125,9 +126,7 @@ const ChatList = ({ chats: propChats, setChats: setParentChats }) => {
                       </p>
                       {chat.lastMessage && (
                         <span className="text-xs text-gray-400">
-                          {new Date(
-                            chat.lastMessage.createdAt
-                          ).toLocaleDateString()}
+                          {formatMessageDate(chat.lastMessage.createdAt)}
                         </span>
                       )}
                     </div>

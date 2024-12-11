@@ -1,15 +1,18 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:3000";
+// Detecta automáticamente la URL del servidor
+const SOCKET_URL =
+  window.location.hostname === "localhost"
+    ? "http://localhost:3000"
+    : `http://${window.location.hostname}:3000`;
 
 export const socket = io(SOCKET_URL, {
-  transports: ['websocket', 'polling'], // Forzar transporte por WebSocket y fallback a polling
-
   autoConnect: false,
   reconnection: true,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   reconnectionAttempts: 5,
+  transports: ["websocket", "polling"], // Añade soporte para polling como fallback
 });
 
 export const connectSocket = (token) => {
@@ -25,10 +28,10 @@ export const connectSocket = (token) => {
   });
 
   socket.on("connect_error", (error) => {
-    console.error("Error de conexión:", error);
+    console.error("Error de conexión socket:", error);
   });
 
-  socket.on("disconnect", () => {
-    console.log("Socket desconectado");
+  socket.on("disconnect", (reason) => {
+    console.log("Socket desconectado, razón:", reason);
   });
 };

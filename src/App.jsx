@@ -11,6 +11,7 @@ import ChatWindow from "./components/ChatWindow";
 import { setAuthToken } from "./services/api";
 import Register from "./components/Register";
 import { connectSocket, socket } from "./services/socket";
+import Profile from "./components/Profile";
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -50,6 +51,7 @@ const App = () => {
         >
           <Route path="chat/:id" element={<ChatWindow />} />
         </Route>
+        <Route path="/profile" element={<Profile />} />
       </Routes>
     </Router>
   );

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { getMessages, getChats } from "../services/api";
 import { socket } from "../services/socket";
+import MessageInput from "./MessageInput";
 
 const ChatWindow = () => {
   const { id: chatId } = useParams();
@@ -127,11 +128,9 @@ const ChatWindow = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
-
-    const messageContent = newMessage.trim();
-    setNewMessage("");
+  const handleSendMessage = async (messageContent) => {
+    // Cambia para recibir el contenido directamente
+    if (!messageContent.trim()) return;
 
     try {
       const tempMessage = {
@@ -191,58 +190,41 @@ const ChatWindow = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`mb-4 flex ${
-              msg.sender?.id === parseInt(localStorage.getItem("userId"), 10)
-                ? "justify-end"
-                : "justify-start"
-            }`}
-          >
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="max-w-4xl mx-auto">
+          {messages.map((msg) => (
             <div
-              className={`max-w-[70%] p-3 rounded-lg ${
+              key={msg.id}
+              className={`mb-4 flex ${
                 msg.sender?.id === parseInt(localStorage.getItem("userId"), 10)
-                  ? "bg-indigo-100"
-                  : "bg-white border"
-              } ${msg.pending ? "opacity-70" : ""}`}
+                  ? "justify-end"
+                  : "justify-start"
+              }`}
             >
-              <p className="text-sm font-medium text-gray-600">
-                {msg.sender?.username || "Usuario desconocido"}
-              </p>
-              <p className="text-base text-gray-800 break-words">
-                {msg.content}
-              </p>
+              <div
+                className={`max-w-[80%] md:max-w-[70%] p-3 rounded-lg break-words
+                  ${
+                    msg.sender?.id ===
+                    parseInt(localStorage.getItem("userId"), 10)
+                      ? "bg-indigo-100"
+                      : "bg-white border"
+                  } 
+                  ${msg.pending ? "opacity-70" : ""}`}
+              >
+                <p className="text-sm font-medium text-gray-600 mb-1">
+                  {msg.sender?.username || "Usuario desconocido"}
+                </p>
+                <p className="text-base text-gray-800 whitespace-pre-wrap">
+                  {msg.content}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <div className="p-4 bg-white border-t">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-            placeholder="Escribe un mensaje"
-            className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
-          />
-          <button
-            onClick={handleSendMessage}
-            className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-          >
-            Enviar
-          </button>
+          ))}
+          <div ref={messagesEndRef} />
         </div>
       </div>
+
+      <MessageInput onSendMessage={handleSendMessage} />
     </div>
   );
 };
