@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import EmojiPicker from "emoji-picker-react";
-import { Smile, Image, Mic, Send, X } from "lucide-react";
+import { Smile, Image, Mic, Send, X, Check } from "lucide-react";
 import { uploadFile } from "../services/storage";
 
 const MessageInput = ({ onSendMessage }) => {
@@ -32,9 +32,9 @@ const MessageInput = ({ onSendMessage }) => {
     };
   }, []);
 
-  const handleSendMessage = (content, type = "text") => {
+  const handleSendMessage = (content, type = "text", audioDuration = null) => {
     if (content) {
-      onSendMessage(content, type);
+      onSendMessage(content, type, audioDuration);
       setMessage("");
       setShowEmojiPicker(false);
     }
@@ -60,28 +60,19 @@ const MessageInput = ({ onSendMessage }) => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm",
+      });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (e) => {
-        audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/mp3" });
-        try {
-          const file = new File([audioBlob], "audio.mp3", { type: "audio/mp3" });
-          const url = await uploadFile(file, "audio");
-          handleSendMessage(url, "audio");
-        } catch (error) {
-          console.error("Error al subir audio:", error);
-          alert("Error al subir el audio");
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
         }
-        stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(200);
       setIsRecording(true);
       startTimer();
     } catch (error) {
@@ -90,12 +81,47 @@ const MessageInput = ({ onSendMessage }) => {
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+  const stopRecording = async (send = false) => {
+    if (!mediaRecorderRef.current || !isRecording) return;
+
+    const currentDuration = recordingTime;
+    const stream = mediaRecorderRef.current.stream;
+
+    if (!send) {
+      stream.getTracks().forEach((track) => track.stop());
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+      setRecordingTime(0);
+      audioChunksRef.current = [];
+    } else {
+      mediaRecorderRef.current.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+
+        if (audioChunksRef.current.length > 0) {
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: "audio/webm",
+          });
+
+          try {
+            const file = new File([audioBlob], `audio-${Date.now()}.webm`, {
+              type: "audio/webm",
+            });
+
+            const url = await uploadFile(file, "audio");
+            if (url) {
+              handleSendMessage(url, "audio", currentDuration);
+            }
+          } catch (error) {
+            console.error("Error al subir audio:", error);
+            alert("Error al subir el audio");
+          }
+        }
+      };
+
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      setRecordingTime(0);
       if (timerRef.current) clearInterval(timerRef.current);
+      setRecordingTime(0);
     }
   };
 
@@ -108,21 +134,20 @@ const MessageInput = ({ onSendMessage }) => {
 
   return (
     <div className="p-4 bg-white border-t relative">
-      <div className="flex items-center gap-2">
-        {/* Emoji Picker */}
+      <div className="flex items-center gap-2 p-1 rounded-2xl bg-gray-50 shadow-sm">
         <div className="relative">
           <button
             ref={emojiButtonRef}
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2.5 hover:bg-white rounded-full transition-all duration-200 text-gray-500 hover:text-indigo-600 hover:shadow-sm"
             type="button"
           >
-            <Smile className="h-6 w-6 text-gray-500" />
+            <Smile className="h-6 w-6" />
           </button>
           {showEmojiPicker && (
             <div
               ref={emojiPickerRef}
-              className="absolute bottom-14 left-0 z-50 shadow-xl"
+              className="absolute bottom-14 left-0 z-50 shadow-xl rounded-lg"
             >
               <EmojiPicker
                 onEmojiClick={onEmojiClick}
@@ -139,19 +164,52 @@ const MessageInput = ({ onSendMessage }) => {
           )}
         </div>
 
-        {/* Subida de imágenes */}
-        <label className="p-2 hover:bg-gray-100 rounded-full cursor-pointer">
-          <Image className="h-6 w-6 text-gray-500" />
+        <label className="p-2.5 hover:bg-white rounded-full transition-all duration-200 text-gray-500 hover:text-indigo-600 hover:shadow-sm cursor-pointer relative group">
+          <Image className="h-6 w-6" />
           <input
             type="file"
             className="hidden"
             accept="image/*"
             onChange={handleImageUpload}
           />
+          <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs py-1.5 px-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            Enviar imagen
+          </span>
         </label>
 
-        {/* Input de mensaje */}
-        {!isRecording && (
+        {isRecording ? (
+          <div className="flex-1 flex items-center gap-3 px-4 py-2.5 bg-gradient-to-r from-red-50 to-red-100 rounded-xl border border-red-200">
+            <div className="flex items-center gap-2">
+              <div className="relative w-3 h-3">
+                <span className="absolute inline-flex w-full h-full rounded-full bg-red-400 opacity-75 animate-ping" />
+                <span className="relative inline-flex rounded-full w-3 h-3 bg-red-500" />
+              </div>
+              <span className="text-sm font-medium text-red-600">
+                {Math.floor(recordingTime / 60)
+                  .toString()
+                  .padStart(2, "0")}
+                :{(recordingTime % 60).toString().padStart(2, "0")}
+              </span>
+            </div>
+
+            <div className="ml-auto flex gap-2">
+              <button
+                onClick={() => stopRecording(false)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 bg-white rounded-lg hover:bg-gray-100 transition-colors duration-200 font-medium"
+              >
+                <X className="w-4 h-4" />
+                Cancelar
+              </button>
+              <button
+                onClick={() => stopRecording(true)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-600 hover:text-green-700 bg-white rounded-lg hover:bg-green-50 transition-colors duration-200 font-medium"
+              >
+                <Check className="w-4 h-4" />
+                Enviar
+              </button>
+            </div>
+          </div>
+        ) : (
           <input
             type="text"
             value={message}
@@ -163,41 +221,32 @@ const MessageInput = ({ onSendMessage }) => {
               }
             }}
             placeholder="Escribe un mensaje"
-            className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="flex-1 px-4 py-2.5 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-shadow duration-200"
           />
         )}
 
-        {/* Grabación de audio */}
-        {isRecording ? (
-          <div className="flex-1 flex items-center gap-2 px-4 py-2 bg-red-50 rounded-lg">
-            <div className="animate-pulse">
-              <span className="inline-block w-2 h-2 bg-red-500 rounded-full" />
-            </div>
-            <span className="text-sm text-gray-600">{recordingTime}s</span>
-            <button
-              onClick={stopRecording}
-              className="ml-auto text-red-500 hover:text-red-600 p-1 hover:bg-red-100 rounded-full"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        ) : (
+        {!isRecording && !message.trim() ? (
           <button
             onClick={startRecording}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2.5 hover:bg-white rounded-full transition-all duration-200 text-gray-500 hover:text-indigo-600 hover:shadow-sm relative group"
             type="button"
           >
-            <Mic className="h-6 w-6 text-gray-500" />
+            <Mic className="h-6 w-6" />
+            <span className="absolute -top-10 right-0 bg-gray-800 text-white text-xs py-1.5 px-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              Grabar audio
+            </span>
           </button>
-        )}
-
-        {/* Botón enviar (solo visible cuando no está grabando) */}
-        {!isRecording && (
+        ) : (
           <button
             onClick={() => handleSendMessage(message, "text")}
-            className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className={`p-2.5 rounded-full transition-all duration-200 ${
+              message.trim()
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                : "text-gray-400 bg-gray-100"
+            }`}
+            disabled={!message.trim()}
           >
-            <Send className="w-5 h-5" />
+            <Send className="w-6 h-6" />
           </button>
         )}
       </div>
