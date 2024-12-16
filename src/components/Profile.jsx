@@ -11,6 +11,7 @@ import {
   Camera,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { uploadFile } from "../services/storage";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ const Profile = () => {
     avatarUrl: "",
   });
   const [updating, setUpdating] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -59,17 +61,22 @@ const Profile = () => {
     }
   };
 
-  const handleAvatarUpload = (e) => {
+  const handleAvatarUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
+      try {
+        setUploadingAvatar(true);
+        const url = await uploadFile(file, "avatars");
         setEditForm((prev) => ({
           ...prev,
-          avatarUrl: reader.result,
+          avatarUrl: url,
         }));
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        console.error("Error al subir avatar:", error);
+        alert("Error al subir la imagen");
+      } finally {
+        setUploadingAvatar(false);
+      }
     }
   };
 
@@ -297,17 +304,34 @@ const Profile = () => {
                           <User className="w-8 h-8 text-gray-400" />
                         </div>
                       )}
-                      <label className="absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 cursor-pointer">
-                        <Camera className="w-4 h-4 text-white" />
+                      <label
+                        className={`absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 cursor-pointer
+                          ${
+                            uploadingAvatar
+                              ? "opacity-50 cursor-not-allowed"
+                              : "hover:bg-indigo-700"
+                          }`}
+                      >
+                        {uploadingAvatar ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Camera className="w-4 h-4 text-white" />
+                        )}
                         <input
                           type="file"
                           className="hidden"
                           accept="image/*"
                           onChange={handleAvatarUpload}
+                          disabled={uploadingAvatar}
                         />
                       </label>
                     </div>
                   </div>
+                  {uploadingAvatar && (
+                    <p className="mt-2 text-sm text-gray-500">
+                      Subiendo imagen...
+                    </p>
+                  )}
                 </div>
 
                 <div>

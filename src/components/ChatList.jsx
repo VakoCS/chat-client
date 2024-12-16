@@ -76,65 +76,106 @@ const ChatList = ({ chats: propChats, setChats: setParentChats }) => {
   };
 
   return (
-    <div className="overflow-y-auto h-[calc(100vh-8rem)]">
-      <ul className="space-y-1">
+    <div className="overflow-y-auto">
+      <ul className="space-y-0.5">
         {displayChats.map((chat) => {
           const otherMember = getOtherMember(chat);
           const isUnread = unreadChats.has(chat.id);
+          const isSelected = currentChatId === chat.id.toString();
 
           return (
             <li key={chat.id}>
               <Link
                 to={`/chat/${chat.id}`}
-                className={`block px-4 py-3 transition-colors duration-150 relative
-                  ${currentChatId === chat.id.toString() ? "bg-indigo-50" : ""}
+                className={`block px-3 py-3 transition-all duration-200 relative
                   ${
-                    isUnread
-                      ? "bg-blue-50 hover:bg-blue-100"
+                    isSelected
+                      ? "bg-indigo-50 border-r-4 border-indigo-500"
                       : "hover:bg-gray-50"
+                  }
+                  ${
+                    isUnread &&
+                    !isSelected &&
+                    "bg-gradient-to-r from-blue-50 to-transparent"
                   }
                 `}
               >
-                {isUnread && (
-                  <span className="absolute right-3 top-3 w-2 h-2 bg-blue-500 rounded-full" />
-                )}
                 <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
+                  <div className="relative flex-shrink-0">
                     {otherMember?.avatarUrl ? (
                       <img
                         src={otherMember.avatarUrl}
                         alt={otherMember.username}
-                        className="w-12 h-12 rounded-full object-cover"
+                        className={`w-12 h-12 rounded-full object-cover transition-shadow
+                          ${isUnread ? "ring-2 ring-blue-400" : ""}
+                        `}
                       />
                     ) : (
-                      <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                        <span className="text-gray-500 text-lg">
+                      <div
+                        className={`w-12 h-12 rounded-full flex items-center justify-center
+                        ${
+                          isUnread
+                            ? "bg-gradient-to-br from-blue-100 to-blue-200 ring-2 ring-blue-400"
+                            : "bg-gradient-to-br from-gray-100 to-gray-200"
+                        }`}
+                      >
+                        <span
+                          className={`text-lg font-medium
+                          ${isUnread ? "text-blue-700" : "text-gray-600"}
+                        `}
+                        >
                           {otherMember?.username?.charAt(0).toUpperCase() ||
                             "?"}
                         </span>
                       </div>
                     )}
+                    {isUnread && (
+                      <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500"></span>
+                      </span>
+                    )}
                   </div>
+
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline">
                       <p
-                        className={`text-sm font-medium truncate ${
-                          isUnread ? "text-blue-800" : "text-gray-900"
-                        }`}
+                        className={`text-sm font-medium truncate
+                        ${isUnread ? "text-blue-800" : "text-gray-900"}
+                      `}
                       >
                         {otherMember?.username || "Usuario desconocido"}
                       </p>
                       {chat.lastMessage && (
-                        <span className="text-xs text-gray-400">
+                        <span
+                          className={`text-xs ${
+                            isUnread ? "text-blue-600" : "text-gray-400"
+                          }`}
+                        >
                           {formatMessageDate(chat.lastMessage.createdAt)}
                         </span>
                       )}
                     </div>
                     {chat.lastMessage ? (
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center space-x-1 mt-0.5">
                         {chat.lastMessage.senderId ===
                           parseInt(localStorage.getItem("userId"), 10) && (
-                          <span className="text-xs text-gray-400">Tú:</span>
+                          <span className="text-xs text-gray-400 flex items-center">
+                            <svg
+                              className="w-3 h-3 mr-0.5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                            Tú:
+                          </span>
                         )}
                         <p
                           className={`text-sm truncate ${
@@ -143,12 +184,23 @@ const ChatList = ({ chats: propChats, setChats: setParentChats }) => {
                               : "text-gray-500"
                           }`}
                         >
-                          {chat.lastMessage.content}
+                          {chat.lastMessage.type === "image" && "📸 Foto"}
+                          {chat.lastMessage.type === "audio" &&
+                            "🎤 Mensaje de voz"}
+                          {chat.lastMessage.type === "text" &&
+                            chat.lastMessage.content}
                         </p>
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-400 italic">
-                        No hay mensajes aún
+                      <p
+                        className={`text-sm truncate ${
+                          isUnread
+                            ? "text-blue-600 font-medium"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {chat.lastMessage?.displayContent ||
+                          "No hay mensajes aún"}
                       </p>
                     )}
                   </div>
@@ -159,8 +211,23 @@ const ChatList = ({ chats: propChats, setChats: setParentChats }) => {
         })}
       </ul>
       {displayChats.length === 0 && (
-        <div className="text-center py-8 px-4">
-          <p className="text-gray-500">No hay chats disponibles</p>
+        <div className="text-center py-12 px-4">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg
+              className="w-8 h-8 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              />
+            </svg>
+          </div>
+          <p className="text-gray-500 font-medium">No hay chats disponibles</p>
           <p className="text-sm text-gray-400 mt-1">
             Usa el buscador para iniciar una nueva conversación
           </p>

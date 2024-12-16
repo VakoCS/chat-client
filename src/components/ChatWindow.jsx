@@ -3,19 +3,17 @@ import { useParams } from "react-router-dom";
 import { getMessages, getChats } from "../services/api";
 import { socket } from "../services/socket";
 import MessageInput from "./MessageInput";
+import Message from "./Message";
 
 const ChatWindow = () => {
   const { id: chatId } = useParams();
   const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState("");
   const [chatInfo, setChatInfo] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // Cargar información del chat y mensajes iniciales
   useEffect(() => {
     const loadChatData = async () => {
       try {
-        // Cargar información del chat
         const { data: chats } = await getChats();
         const currentChat = chats.find(
           (chat) => chat.id === parseInt(chatId, 10)
@@ -28,7 +26,6 @@ const ChatWindow = () => {
           setChatInfo(otherMember);
         }
 
-        // Cargar mensajes
         const { data: messages } = await getMessages(chatId);
         setMessages(messages);
       } catch (error) {
@@ -41,7 +38,6 @@ const ChatWindow = () => {
     }
   }, [chatId]);
 
-  // Gestionar conexión del socket y salas
   useEffect(() => {
     if (!socket.connected) {
       const token = localStorage.getItem("token");
@@ -70,7 +66,6 @@ const ChatWindow = () => {
     };
   }, [chatId]);
 
-  // Manejar mensajes nuevos
   useEffect(() => {
     const handleNewMessage = (message) => {
       if (message.chatId === parseInt(chatId, 10)) {
@@ -120,22 +115,22 @@ const ChatWindow = () => {
     };
   }, [chatId]);
 
-  // Auto-scroll al último mensaje
   useEffect(() => {
-    const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSendMessage = async (messageContent) => {
-    // Cambia para recibir el contenido directamente
-    if (!messageContent.trim()) return;
+  const handleSendMessage = async (
+    messageContent,
+    type = "text",
+    audioDuration = null
+  ) => {
+    if (!messageContent) return;
 
     try {
       const tempMessage = {
         id: `temp-${Date.now()}`,
         content: messageContent,
+        type: type,
         chatId: parseInt(chatId, 10),
         sender: {
           username: localStorage.getItem("username"),
@@ -143,14 +138,17 @@ const ChatWindow = () => {
         },
         pending: true,
         createdAt: new Date().toISOString(),
+        ...(type === "audio" ? { audioDuration } : {}),
       };
 
       setMessages((prev) => [...prev, tempMessage]);
 
       socket.emit("send-message", {
         content: messageContent,
+        type: type,
         chatId: parseInt(chatId, 10),
         senderId: parseInt(localStorage.getItem("userId"), 10),
+        ...(type === "audio" ? { audioDuration } : {}),
       });
     } catch (error) {
       console.error("Error al enviar mensaje:", error);
@@ -193,32 +191,13 @@ const ChatWindow = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="max-w-4xl mx-auto">
           {messages.map((msg) => (
-            <div
+            <Message
               key={msg.id}
-              className={`mb-4 flex ${
+              message={msg}
+              isOwn={
                 msg.sender?.id === parseInt(localStorage.getItem("userId"), 10)
-                  ? "justify-end"
-                  : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[80%] md:max-w-[70%] p-3 rounded-lg break-words
-                  ${
-                    msg.sender?.id ===
-                    parseInt(localStorage.getItem("userId"), 10)
-                      ? "bg-indigo-100"
-                      : "bg-white border"
-                  } 
-                  ${msg.pending ? "opacity-70" : ""}`}
-              >
-                <p className="text-sm font-medium text-gray-600 mb-1">
-                  {msg.sender?.username || "Usuario desconocido"}
-                </p>
-                <p className="text-base text-gray-800 whitespace-pre-wrap">
-                  {msg.content}
-                </p>
-              </div>
-            </div>
+              }
+            />
           ))}
           <div ref={messagesEndRef} />
         </div>
